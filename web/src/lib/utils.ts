@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { useSettingStore } from "@/stores/setting"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -21,10 +22,24 @@ export function formatCount(num: number | undefined): { raw: number, formatted: 
     formatted: formatNumber(num, [1000000000, 1000000, 1000, 1], ['', 'B', 'M', 'K', '', '']),
   };
 }
+
+export function getCurrencySymbol(): string {
+  const { currency } = useSettingStore.getState();
+  return currency === 'CNY' ? '¥' : '$';
+}
+
+export function convertCurrency(num: number): number {
+  const { currency, exchangeRate } = useSettingStore.getState();
+  return currency === 'CNY' ? num * exchangeRate : num;
+}
+
 export function formatMoney(num: number | undefined): { raw: number, formatted: { value: string, unit: string } } {
+  const { currency, exchangeRate } = useSettingStore.getState();
+  const converted = currency === 'CNY' && num !== undefined ? num * exchangeRate : num;
+  const symbol = currency === 'CNY' ? '¥' : '$';
   return {
     raw: num ?? 0,
-    formatted: formatNumber(num, [1000000000, 1000000, 1000, 1], ['$', 'B$', 'M$', 'K$', '$', '$']),
+    formatted: formatNumber(converted, [1000000000, 1000000, 1000, 1], [symbol, `B${symbol}`, `M${symbol}`, `K${symbol}`, symbol, symbol]),
   };
 }
 

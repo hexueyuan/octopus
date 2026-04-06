@@ -48,7 +48,7 @@
         "channel": "Channel",
         "group": "Group",
         "key": "Key",
-        "model": "Price",
+
         "log": "Log",
         "setting": "Setting"
     },
@@ -76,12 +76,8 @@
                     "all": "All groups",
                     "withMembers": "With members",
                     "empty": "Empty groups"
-                },
-                "model": {
-                    "all": "All models",
-                    "priced": "Priced only",
-                    "free": "Free only"
                 }
+
             }
         }
     },
@@ -93,12 +89,12 @@
         }
     },
     "home": {
-        "activity": {
-            "requestCount": "Requests",
-            "waitTime": "Wait Time",
-            "totalToken": "Tokens Used",
-            "totalCost": "Total Cost",
-            "noData": "No Data"
+        "timeRange": {
+            "today": "Today",
+            "last7Days": "7 Days",
+            "last30Days": "30 Days",
+            "all": "All",
+            "custom": "Custom"
         },
         "total": {
             "requestStats": "Request Stats",
@@ -111,6 +107,8 @@
             "totalCost": "Total Cost",
             "inputTokens": "Input Tokens",
             "inputCost": "Input Cost",
+            "cacheReadTokens": "Cache Read",
+            "cacheWriteTokens": "Cache Write",
             "outputTokens": "Output Tokens",
             "outputCost": "Output Cost"
         },
@@ -119,16 +117,10 @@
             "totalRequests": "Total Requests",
             "totalCost": "Total Cost",
             "totalTokens": "Total Tokens",
-            "timePeriod": "Time Period",
             "metricType": {
                 "cost": "Cost",
                 "count": "Count",
                 "tokens": "Tokens"
-            },
-            "period": {
-                "today": "Today",
-                "last7Days": "7 Days",
-                "last30Days": "30 Days"
             }
         },
         "rank": {
@@ -154,6 +146,12 @@
             "zh_hans": "Chinese (Simplified)",
             "zh_hant": "Chinese (Traditional)",
             "en": "English"
+        },
+        "currency": {
+            "label": "Currency",
+            "usd": "USD ($)",
+            "cny": "CNY (¥)",
+            "exchangeRate": "Exchange Rate (1 USD)"
         },
         "proxyUrl": {
             "label": "Proxy URL",
@@ -303,24 +301,6 @@
                 "failed": "Failed to change password"
             }
         },
-        "info": {
-            "title": "Version Info",
-            "currentVersion": "Current Version",
-            "latestVersion": "Latest Version",
-            "buildTime": "Build Time",
-            "publishedAt": "Published At",
-            "github": "GitHub Repository",
-            "unknown": "Unknown",
-            "versionMismatch": "Version Mismatch",
-            "versionMismatchHint": "Frontend version ({frontend}) does not match backend version ({backend}). This may be a browser cache issue. Please force refresh the page.",
-            "forceRefresh": "Force Refresh",
-            "newVersionAvailable": "New version available",
-            "newVersionAvailableHint": "Please backup your data first, then update the system",
-            "updateNow": "Update Now",
-            "updating": "Updating...",
-            "updateSuccess": "Update successful, service will restart shortly",
-            "updateFailed": "Update failed"
-        },
         "log": {
             "title": "Log Settings",
             "enabled": {
@@ -390,40 +370,6 @@
         },
         "empty": "No groups yet, click the button above to create one"
     },
-    "model": {
-        "create": {
-            "title": "Create Model",
-            "name": "Model Name",
-            "input": "Input Price",
-            "output": "Output Price",
-            "cacheRead": "Cache Read",
-            "cacheWrite": "Cache Write",
-            "submit": "Create",
-            "submitting": "Creating..."
-        },
-        "toast": {
-            "updated": "Model price updated",
-            "updateFailed": "Update failed",
-            "deleted": "Model deleted",
-            "deleteFailed": "Delete failed"
-        },
-        "card": {
-            "inputCache": "Input/Cache",
-            "outputCache": "Output/Cache",
-            "edit": "Edit",
-            "delete": "Delete"
-        },
-        "overlay": {
-            "cancel": "Cancel",
-            "deleting": "Deleting...",
-            "confirmDelete": "Confirm Delete",
-            "input": "Input",
-            "output": "Output",
-            "cacheRead": "Cache Read",
-            "cacheWrite": "Cache Write",
-            "save": "Save"
-        }
-    },
     "log": {
         "list": {
             "noMore": "No more logs"
@@ -436,6 +382,8 @@
             "input": "Input",
             "output": "Output",
             "cost": "Cost",
+            "cacheRead": "Cache Read",
+            "cacheWrite": "Cache Write",
             "requestContent": "Request Content",
             "responseContent": "Response Content",
             "noRequestContent": "(No request content)",
@@ -541,7 +489,17 @@
             "autoGroupRegex": "Regex",
             "matchRegex": "Match Regex",
             "matchRegexPlaceholder": "Optional: regex pattern to match request model names",
-            "remark": "Remark"
+            "remark": "Remark",
+            "modelPrice": "Model Pricing",
+            "modelPriceInput": "Input",
+            "modelPriceOutput": "Output",
+            "modelPriceCacheRead": "Cache Read",
+            "modelPriceCacheWrite": "Cache Write",
+            "modelPriceSaveAll": "Save Prices",
+            "modelPriceSaving": "Saving...",
+            "modelPriceSaved": "Prices saved",
+            "modelPriceSaveFailed": "Failed to save prices",
+            "modelPriceNoChanges": "No changes"
         }
     }
 }

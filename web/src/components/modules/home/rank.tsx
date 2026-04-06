@@ -1,46 +1,67 @@
 'use client';
 
-import { useChannelList } from '@/api/endpoints/channel';
+import { useStatsModelRank, type ModelRankItemFormatted } from '@/api/endpoints/stats';
 import { useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { TrendingUp } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContents, TabsContent } from '@/components/animate-ui/components/animate/tabs';
 import { useHomeViewStore, type RankSortMode } from '@/components/modules/home/store';
+import { useResolvedTimeRange } from './hooks';
 
-type ChannelData = NonNullable<ReturnType<typeof useChannelList>['data']>[number];
+interface NormalizedModel {
+    name: string;
+    channel_name: string;
+    total_cost: { raw: number; formatted: { value: string; unit: string } };
+    request_count: { raw: number; formatted: { value: string; unit: string } };
+    total_token: { raw: number; formatted: { value: string; unit: string } };
+    request_success: { raw: number; formatted: { value: string; unit: string } };
+    request_failed: { raw: number; formatted: { value: string; unit: string } };
+}
 
 export function Rank() {
-    const { data: channelData } = useChannelList();
+    const { start, end } = useResolvedTimeRange();
+    const { data: rankedData } = useStatsModelRank(start, end);
+
     const t = useTranslations('home.rank');
     const rankSortMode = useHomeViewStore((state) => state.rankSortMode);
     const setRankSortMode = useHomeViewStore((state) => state.setRankSortMode);
 
-    const rankedByCost = useMemo<ChannelData[]>(() => {
-        if (!channelData) return [];
-        return [...channelData].sort((a, b) => b.formatted.total_cost.raw - a.formatted.total_cost.raw);
-    }, [channelData]);
+    const models = useMemo<NormalizedModel[]>(() => {
+        if (!rankedData) return [];
+        return rankedData.map((item: ModelRankItemFormatted) => ({
+            name: item.model_name,
+            channel_name: item.channel_name,
+            total_cost: item.total_cost,
+            request_count: item.request_count,
+            total_token: item.total_token,
+            request_success: item.request_success,
+            request_failed: item.request_failed,
+        }));
+    }, [rankedData]);
 
-    const rankedByCount = useMemo<ChannelData[]>(() => {
-        if (!channelData) return [];
-        return [...channelData].sort((a, b) => b.formatted.request_count.raw - a.formatted.request_count.raw);
-    }, [channelData]);
+    const rankedByCost = useMemo(() => {
+        return [...models].sort((a, b) => b.total_cost.raw - a.total_cost.raw);
+    }, [models]);
 
-    const rankedByTokens = useMemo<ChannelData[]>(() => {
-        if (!channelData) return [];
-        return [...channelData].sort((a, b) => b.formatted.total_token.raw - a.formatted.total_token.raw);
-    }, [channelData]);
+    const rankedByCount = useMemo(() => {
+        return [...models].sort((a, b) => b.request_count.raw - a.request_count.raw);
+    }, [models]);
+
+    const rankedByTokens = useMemo(() => {
+        return [...models].sort((a, b) => b.total_token.raw - a.total_token.raw);
+    }, [models]);
 
     const getMedalEmoji = (rank: number): string => {
         switch (rank) {
-            case 1: return '🥇';
-            case 2: return '🥈';
-            case 3: return '🥉';
+            case 1: return '\u{1F947}';
+            case 2: return '\u{1F948}';
+            case 3: return '\u{1F949}';
             default: return '';
         }
     };
 
-    const renderList = (channels: ChannelData[], mode: RankSortMode) => {
-        if (channels.length === 0) {
+    const renderList = (items: NormalizedModel[], mode: RankSortMode) => {
+        if (items.length === 0) {
             return (
                 <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
                     <TrendingUp className="w-12 h-12 mb-3 opacity-30" />
@@ -50,13 +71,13 @@ export function Rank() {
         }
         return (
             <div className="space-y-3 max-h-[300px] overflow-y-auto">
-                {channels.map((channel, index) => {
+                {items.map((model, index) => {
                     const rank = index + 1;
                     const medal = getMedalEmoji(rank);
 
                     return (
                         <div
-                            key={channel.raw.id}
+                            key={`${model.channel_name}:${model.name}`}
                             className="flex items-center gap-3 p-3 rounded-2xl hover:bg-accent/5 transition-colors"
                         >
                             <div className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-lg shrink-0">
@@ -64,10 +85,11 @@ export function Rank() {
                             </div>
 
                             <div className="flex-1 min-w-0">
-                                <p className="font-medium text-sm truncate">{channel.raw.name}</p>
+                                <p className="font-medium text-sm truncate">{model.name}</p>
+                                <p className="text-xs text-muted-foreground truncate">{model.channel_name}</p>
                                 {mode === 'count' && (() => {
-                                    const successCount = channel.formatted.request_success.raw;
-                                    const failedCount = channel.formatted.request_failed.raw;
+                                    const successCount = model.request_success.raw;
+                                    const failedCount = model.request_failed.raw;
                                     const totalCount = successCount + failedCount;
                                     const successRate = totalCount > 0 ? (successCount / totalCount) * 100 : 0;
 
@@ -84,31 +106,31 @@ export function Rank() {
                                 {mode === 'count' ? (
                                     <div className="flex items-center gap-1 text-sm font-medium tabular-nums">
                                         <span className="text-accent">
-                                            {channel.formatted.request_success.formatted.value}
+                                            {model.request_success.formatted.value}
                                             <span className="text-xs text-muted-foreground">
-                                                {channel.formatted.request_success.formatted.unit}
+                                                {model.request_success.formatted.unit}
                                             </span>
                                         </span>
                                         <span className="text-muted-foreground/40 font-light">/</span>
                                         <span className="text-destructive">
-                                            {channel.formatted.request_failed.formatted.value}
+                                            {model.request_failed.formatted.value}
                                             <span className="text-xs text-muted-foreground">
-                                                {channel.formatted.request_failed.formatted.unit}
+                                                {model.request_failed.formatted.unit}
                                             </span>
                                         </span>
                                     </div>
                                 ) : mode === 'tokens' ? (
                                     <span className="font-semibold text-base">
-                                        {channel.formatted.total_token.formatted.value}
+                                        {model.total_token.formatted.value}
                                         <span className="text-xs text-muted-foreground">
-                                            {channel.formatted.total_token.formatted.unit}
+                                            {model.total_token.formatted.unit}
                                         </span>
                                     </span>
                                 ) : (
                                     <span className="font-semibold text-base">
-                                        {channel.formatted.total_cost.formatted.value}
+                                        {model.total_cost.formatted.value}
                                         <span className="text-xs text-muted-foreground">
-                                            {channel.formatted.total_cost.formatted.unit}
+                                            {model.total_cost.formatted.unit}
                                         </span>
                                     </span>
                                 )}

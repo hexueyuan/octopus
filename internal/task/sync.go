@@ -32,7 +32,20 @@ func SyncModelsTask() {
 	totalNewModels := make([]string, 0, 128)
 	seenTotalNewModels := make(map[string]struct{}, 128)
 	for _, channel := range channels {
+		// 非自动同步渠道的模型也需要纳入 totalNewModels，
+		// 防止后续 diff 误删这些模型的价格记录
 		if !channel.AutoSync {
+			for _, m := range xstrings.SplitTrimCompact(",", channel.Model+","+channel.CustomModel) {
+				m = strings.ToLower(strings.TrimSpace(m))
+				if m == "" {
+					continue
+				}
+				if _, ok := seenTotalNewModels[m]; ok {
+					continue
+				}
+				seenTotalNewModels[m] = struct{}{}
+				totalNewModels = append(totalNewModels, m)
+			}
 			continue
 		}
 		fetchModels, err := helper.FetchModels(ctx, channel)

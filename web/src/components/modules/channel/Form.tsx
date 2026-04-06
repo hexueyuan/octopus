@@ -14,6 +14,7 @@ import { toast } from '@/components/common/Toast';
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState } from 'react';
 import { RefreshCw, X, Plus } from 'lucide-react';
+import { ModelPriceEditor } from './ModelPriceEditor';
 
 export interface ChannelKeyFormItem {
     id?: number;
@@ -456,6 +457,8 @@ export function ChannelForm({
                     </div>
                 </div>
             </div>
+
+            <ModelPriceEditor modelNames={[...autoModels, ...customModels]} />
 
             <Accordion type="single" collapsible className="w-full border rounded-xl bg-card">
                 <AccordionItem value="advanced" className="border-none">

@@ -6,6 +6,7 @@ import { toast } from '@/components/common/Toast';
 import { useAPIKeyDashboardStats } from '@/api/endpoints/apikey';
 import { useAuthStore } from '@/api/endpoints/user';
 import { useSettingStore } from '@/stores/setting';
+import { getCurrencySymbol, convertCurrency } from '@/lib/utils';
 import { AnimatedNumber } from '@/components/common/AnimatedNumber';
 import Logo from '@/components/modules/logo';
 import { PageWrapper } from '@/components/common/PageWrapper';
@@ -177,7 +178,7 @@ export function APIKeyDashboard() {
                                         <Progress value={Math.min(100, (usedCost / maxCost) * 100)} className="h-4 *:data-[slot=progress-indicator]:bg-chart-1" />
                                         <div className="flex justify-between text-sm text-muted-foreground mt-1">
                                             <span>0</span>
-                                            <span>{maxCost.toFixed(2)} $</span>
+                                            <span>{convertCurrency(maxCost).toFixed(2)} {getCurrencySymbol()}</span>
                                         </div>
                                     </div>
                                 )}

@@ -110,7 +110,7 @@ func ChannelKeySaveDB(ctx context.Context) error {
 }
 
 func ChannelUpdate(req *model.ChannelUpdateRequest, ctx context.Context) (*model.Channel, error) {
-	_, ok := channelCache.Get(req.ID)
+	oldChannel, ok := channelCache.Get(req.ID)
 	if !ok {
 		return nil, fmt.Errorf("channel not found")
 	}
@@ -246,6 +246,12 @@ func ChannelUpdate(req *model.ChannelUpdateRequest, ctx context.Context) (*model
 	}
 
 	channel, _ := channelCache.Get(req.ID)
+
+	// 如果模型列表发生变化，异步清理不再使用的孤立模型
+	if req.Model != nil || req.CustomModel != nil {
+		go cleanupOrphanedModels(oldChannel, ctx)
+	}
+
 	return &channel, nil
 }
 
@@ -329,7 +335,57 @@ func ChannelDel(id int, ctx context.Context) error {
 		}
 	}
 
+	// 清理已删除渠道独占的模型（无其他渠道引用且价格为零的模型）
+	go cleanupOrphanedModels(ch, ctx)
+
 	return nil
+}
+
+// cleanupOrphanedModels 删除已删除渠道独占的模型记录（无其他渠道引用且价格为零）
+func cleanupOrphanedModels(deletedChannel model.Channel, ctx context.Context) {
+	// 获取被删除渠道的所有模型名称
+	deletedModels := xstrings.SplitTrimCompact(",", deletedChannel.Model, deletedChannel.CustomModel)
+	if len(deletedModels) == 0 {
+		return
+	}
+
+	// 收集所有仍存在的渠道引用的模型名称
+	activeModels := make(map[string]struct{})
+	for _, channel := range channelCache.GetAll() {
+		for _, name := range xstrings.SplitTrimCompact(",", channel.Model, channel.CustomModel) {
+			activeModels[name] = struct{}{}
+		}
+	}
+
+	// 找出不再被任何渠道引用的模型
+	orphaned := make([]string, 0)
+	for _, name := range deletedModels {
+		if _, ok := activeModels[name]; !ok {
+			orphaned = append(orphaned, name)
+		}
+	}
+
+	if len(orphaned) == 0 {
+		return
+	}
+
+	// 仅删除价格为零的孤立模型（保留用户手动设置过价格的模型）
+	needDelete := make([]string, 0, len(orphaned))
+	for _, name := range orphaned {
+		price, err := LLMGet(name)
+		if err != nil {
+			continue
+		}
+		if price.Input == 0 && price.Output == 0 && price.CacheRead == 0 && price.CacheWrite == 0 {
+			needDelete = append(needDelete, name)
+		}
+	}
+
+	if len(needDelete) > 0 {
+		if err := LLMBatchDelete(needDelete, ctx); err != nil {
+			log.Warnf("failed to cleanup orphaned models: %v", err)
+		}
+	}
 }
 
 func ChannelLLMList(ctx context.Context) ([]model.LLMChannel, error) {

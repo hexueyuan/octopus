@@ -396,6 +396,387 @@ func StatsGetDaily(ctx context.Context) ([]model.StatsDaily, error) {
 	return statsDaily, nil
 }
 
+// StatsGetDailyRange returns daily stats within the given date range (inclusive).
+// If the range includes today, the in-memory cache is merged since today's data may not be flushed.
+func StatsGetDailyRange(ctx context.Context, startDate, endDate string) ([]model.StatsDaily, error) {
+	var statsDaily []model.StatsDaily
+	result := db.GetDB().WithContext(ctx).Where("date >= ? AND date <= ?", startDate, endDate).Find(&statsDaily)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	today := time.Now().Format("20060102")
+	if today >= startDate && today <= endDate {
+		statsDailyCacheLock.RLock()
+		todayCache := statsDailyCache
+		statsDailyCacheLock.RUnlock()
+
+		if todayCache.Date == today {
+			found := false
+			for i, d := range statsDaily {
+				if d.Date == today {
+					statsDaily[i] = todayCache
+					found = true
+					break
+				}
+			}
+			if !found {
+				statsDaily = append(statsDaily, todayCache)
+			}
+		}
+	}
+
+	return statsDaily, nil
+}
+
+// StatsGetDailyRangeAggregated returns a single aggregated StatsMetrics for the given date range.
+func StatsGetDailyRangeAggregated(ctx context.Context, startDate, endDate string) (model.StatsMetrics, error) {
+	dailyStats, err := StatsGetDailyRange(ctx, startDate, endDate)
+	if err != nil {
+		return model.StatsMetrics{}, err
+	}
+
+	var aggregated model.StatsMetrics
+	for _, d := range dailyStats {
+		aggregated.Add(d.StatsMetrics)
+	}
+	return aggregated, nil
+}
+
+// StatsGetHourlyByDate returns hourly stats for a specific date.
+// If the date is today, it returns data from the in-memory cache.
+func StatsGetHourlyByDate(ctx context.Context, date string) ([]model.StatsHourly, error) {
+	today := time.Now().Format("20060102")
+	if date == today {
+		return StatsHourlyGet(), nil
+	}
+
+	var hourlyStats []model.StatsHourly
+	result := db.GetDB().WithContext(ctx).Where("date = ?", date).Order("hour ASC").Find(&hourlyStats)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return hourlyStats, nil
+}
+
+// StatsGetChannelRankByRange returns per-channel aggregated stats from relay_logs for the given date range.
+func StatsGetChannelRankByRange(ctx context.Context, startDate, endDate string) ([]model.ChannelRankItem, error) {
+	startTime, err := time.ParseInLocation("20060102", startDate, time.Now().Location())
+	if err != nil {
+		return nil, fmt.Errorf("invalid start date: %w", err)
+	}
+	endTime, err := time.ParseInLocation("20060102", endDate, time.Now().Location())
+	if err != nil {
+		return nil, fmt.Errorf("invalid end date: %w", err)
+	}
+	// endTime should cover the entire day
+	endTimestamp := endTime.Add(24*time.Hour - time.Second).Unix()
+	startTimestamp := startTime.Unix()
+
+	type dbResult struct {
+		ChannelID       int     `gorm:"column:channel_id"`
+		ChannelName     string  `gorm:"column:channel_name"`
+		InputToken      int64   `gorm:"column:input_token"`
+		OutputToken     int64   `gorm:"column:output_token"`
+		CacheReadToken  int64   `gorm:"column:cache_read_token"`
+		CacheWriteToken int64   `gorm:"column:cache_write_token"`
+		TotalCost       float64 `gorm:"column:total_cost"`
+		RequestSuccess  int64   `gorm:"column:request_success"`
+		RequestFailed   int64   `gorm:"column:request_failed"`
+		WaitTime        int64   `gorm:"column:wait_time"`
+	}
+
+	var results []dbResult
+	err = db.GetDB().WithContext(ctx).
+		Model(&model.RelayLog{}).
+		Select(`channel_id AS channel_id,
+			channel_name AS channel_name,
+			COALESCE(SUM(input_tokens), 0) AS input_token,
+			COALESCE(SUM(output_tokens), 0) AS output_token,
+			COALESCE(SUM(cache_read_tokens), 0) AS cache_read_token,
+			COALESCE(SUM(cache_write_tokens), 0) AS cache_write_token,
+			COALESCE(SUM(cost), 0) AS total_cost,
+			COALESCE(SUM(CASE WHEN error = '' THEN 1 ELSE 0 END), 0) AS request_success,
+			COALESCE(SUM(CASE WHEN error != '' THEN 1 ELSE 0 END), 0) AS request_failed,
+			COALESCE(SUM(use_time), 0) AS wait_time`).
+		Where("time >= ? AND time <= ?", startTimestamp, endTimestamp).
+		Group("channel_id").
+		Find(&results).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// Build a map to merge in-memory relay log cache entries
+	rankMap := make(map[int]*model.ChannelRankItem, len(results))
+	for i := range results {
+		r := &results[i]
+		rankMap[r.ChannelID] = &model.ChannelRankItem{
+			ChannelID:       r.ChannelID,
+			ChannelName:     r.ChannelName,
+			InputToken:      r.InputToken,
+			OutputToken:     r.OutputToken,
+			CacheReadToken:  r.CacheReadToken,
+			CacheWriteToken: r.CacheWriteToken,
+			TotalCost:       r.TotalCost,
+			RequestSuccess:  r.RequestSuccess,
+			RequestFailed:   r.RequestFailed,
+			WaitTime:        r.WaitTime,
+		}
+	}
+
+	// Merge unflushed relay log cache entries
+	relayLogCacheLock.Lock()
+	for _, rl := range relayLogCache {
+		if rl.Time >= startTimestamp && rl.Time <= endTimestamp {
+			item, ok := rankMap[rl.ChannelId]
+			if !ok {
+				item = &model.ChannelRankItem{
+					ChannelID:   rl.ChannelId,
+					ChannelName: rl.ChannelName,
+				}
+				rankMap[rl.ChannelId] = item
+			}
+			item.InputToken += int64(rl.InputTokens)
+			item.OutputToken += int64(rl.OutputTokens)
+			item.CacheReadToken += int64(rl.CacheReadTokens)
+			item.CacheWriteToken += int64(rl.CacheWriteTokens)
+			item.TotalCost += rl.Cost
+			item.WaitTime += int64(rl.UseTime)
+			if rl.Error == "" {
+				item.RequestSuccess++
+			} else {
+				item.RequestFailed++
+			}
+		}
+	}
+	relayLogCacheLock.Unlock()
+
+	// Convert map to slice
+	rankItems := make([]model.ChannelRankItem, 0, len(rankMap))
+	for _, item := range rankMap {
+		rankItems = append(rankItems, *item)
+	}
+
+	return rankItems, nil
+}
+
+// StatsGetChannelRankAll returns per-channel cumulative stats from the in-memory cache.
+func StatsGetChannelRankAll() []model.ChannelRankItem {
+	allChannels := statsChannelCache.GetAll()
+	items := make([]model.ChannelRankItem, 0, len(allChannels))
+	for _, ch := range allChannels {
+		items = append(items, model.ChannelRankItem{
+			ChannelID:       ch.ChannelID,
+			InputToken:      ch.InputToken,
+			OutputToken:     ch.OutputToken,
+			CacheReadToken:  ch.CacheReadToken,
+			CacheWriteToken: ch.CacheWriteToken,
+			TotalCost:       ch.InputCost + ch.OutputCost,
+			RequestSuccess:  ch.RequestSuccess,
+			RequestFailed:   ch.RequestFailed,
+			WaitTime:        ch.WaitTime,
+		})
+	}
+	return items
+}
+
+// StatsGetModelRankByRange returns per-channel-model aggregated stats from relay_logs for the given date range.
+func StatsGetModelRankByRange(ctx context.Context, startDate, endDate string) ([]model.ModelRankItem, error) {
+	startTime, err := time.ParseInLocation("20060102", startDate, time.Now().Location())
+	if err != nil {
+		return nil, fmt.Errorf("invalid start date: %w", err)
+	}
+	endTime, err := time.ParseInLocation("20060102", endDate, time.Now().Location())
+	if err != nil {
+		return nil, fmt.Errorf("invalid end date: %w", err)
+	}
+	endTimestamp := endTime.Add(24*time.Hour - time.Second).Unix()
+	startTimestamp := startTime.Unix()
+
+	type dbResult struct {
+		ChannelID       int     `gorm:"column:channel_id"`
+		ChannelName     string  `gorm:"column:channel_name"`
+		ModelName       string  `gorm:"column:model_name"`
+		InputToken      int64   `gorm:"column:input_token"`
+		OutputToken     int64   `gorm:"column:output_token"`
+		CacheReadToken  int64   `gorm:"column:cache_read_token"`
+		CacheWriteToken int64   `gorm:"column:cache_write_token"`
+		TotalCost       float64 `gorm:"column:total_cost"`
+		RequestSuccess  int64   `gorm:"column:request_success"`
+		RequestFailed   int64   `gorm:"column:request_failed"`
+		WaitTime        int64   `gorm:"column:wait_time"`
+	}
+
+	var results []dbResult
+	err = db.GetDB().WithContext(ctx).
+		Model(&model.RelayLog{}).
+		Select(`channel_id AS channel_id,
+			channel_name AS channel_name,
+			actual_model_name AS model_name,
+			COALESCE(SUM(input_tokens), 0) AS input_token,
+			COALESCE(SUM(output_tokens), 0) AS output_token,
+			COALESCE(SUM(cache_read_tokens), 0) AS cache_read_token,
+			COALESCE(SUM(cache_write_tokens), 0) AS cache_write_token,
+			COALESCE(SUM(cost), 0) AS total_cost,
+			COALESCE(SUM(CASE WHEN error = '' THEN 1 ELSE 0 END), 0) AS request_success,
+			COALESCE(SUM(CASE WHEN error != '' THEN 1 ELSE 0 END), 0) AS request_failed,
+			COALESCE(SUM(use_time), 0) AS wait_time`).
+		Where("time >= ? AND time <= ? AND actual_model_name != ''", startTimestamp, endTimestamp).
+		Group("channel_id, actual_model_name").
+		Find(&results).Error
+	if err != nil {
+		return nil, err
+	}
+
+	rankMap := make(map[string]*model.ModelRankItem, len(results))
+	for i := range results {
+		r := &results[i]
+		key := fmt.Sprintf("%d:%s", r.ChannelID, r.ModelName)
+		rankMap[key] = &model.ModelRankItem{
+			ChannelID:       r.ChannelID,
+			ChannelName:     r.ChannelName,
+			ModelName:       r.ModelName,
+			InputToken:      r.InputToken,
+			OutputToken:     r.OutputToken,
+			CacheReadToken:  r.CacheReadToken,
+			CacheWriteToken: r.CacheWriteToken,
+			TotalCost:       r.TotalCost,
+			RequestSuccess:  r.RequestSuccess,
+			RequestFailed:   r.RequestFailed,
+			WaitTime:        r.WaitTime,
+		}
+	}
+
+	// Merge unflushed relay log cache entries
+	relayLogCacheLock.Lock()
+	for _, rl := range relayLogCache {
+		if rl.ActualModelName != "" && rl.Time >= startTimestamp && rl.Time <= endTimestamp {
+			key := fmt.Sprintf("%d:%s", rl.ChannelId, rl.ActualModelName)
+			item, ok := rankMap[key]
+			if !ok {
+				item = &model.ModelRankItem{
+					ChannelID:   rl.ChannelId,
+					ChannelName: rl.ChannelName,
+					ModelName:   rl.ActualModelName,
+				}
+				rankMap[key] = item
+			}
+			item.InputToken += int64(rl.InputTokens)
+			item.OutputToken += int64(rl.OutputTokens)
+			item.CacheReadToken += int64(rl.CacheReadTokens)
+			item.CacheWriteToken += int64(rl.CacheWriteTokens)
+			item.TotalCost += rl.Cost
+			item.WaitTime += int64(rl.UseTime)
+			if rl.Error == "" {
+				item.RequestSuccess++
+			} else {
+				item.RequestFailed++
+			}
+		}
+	}
+	relayLogCacheLock.Unlock()
+
+	rankItems := make([]model.ModelRankItem, 0, len(rankMap))
+	for _, item := range rankMap {
+		rankItems = append(rankItems, *item)
+	}
+
+	return rankItems, nil
+}
+
+// StatsGetModelRankAll returns per-channel-model aggregated stats from all relay_logs.
+func StatsGetModelRankAll(ctx context.Context) ([]model.ModelRankItem, error) {
+	type dbResult struct {
+		ChannelID       int     `gorm:"column:channel_id"`
+		ChannelName     string  `gorm:"column:channel_name"`
+		ModelName       string  `gorm:"column:model_name"`
+		InputToken      int64   `gorm:"column:input_token"`
+		OutputToken     int64   `gorm:"column:output_token"`
+		CacheReadToken  int64   `gorm:"column:cache_read_token"`
+		CacheWriteToken int64   `gorm:"column:cache_write_token"`
+		TotalCost       float64 `gorm:"column:total_cost"`
+		RequestSuccess  int64   `gorm:"column:request_success"`
+		RequestFailed   int64   `gorm:"column:request_failed"`
+		WaitTime        int64   `gorm:"column:wait_time"`
+	}
+
+	var results []dbResult
+	err := db.GetDB().WithContext(ctx).
+		Model(&model.RelayLog{}).
+		Select(`channel_id AS channel_id,
+			channel_name AS channel_name,
+			actual_model_name AS model_name,
+			COALESCE(SUM(input_tokens), 0) AS input_token,
+			COALESCE(SUM(output_tokens), 0) AS output_token,
+			COALESCE(SUM(cache_read_tokens), 0) AS cache_read_token,
+			COALESCE(SUM(cache_write_tokens), 0) AS cache_write_token,
+			COALESCE(SUM(cost), 0) AS total_cost,
+			COALESCE(SUM(CASE WHEN error = '' THEN 1 ELSE 0 END), 0) AS request_success,
+			COALESCE(SUM(CASE WHEN error != '' THEN 1 ELSE 0 END), 0) AS request_failed,
+			COALESCE(SUM(use_time), 0) AS wait_time`).
+		Where("actual_model_name != ''").
+		Group("channel_id, actual_model_name").
+		Find(&results).Error
+	if err != nil {
+		return nil, err
+	}
+
+	rankMap := make(map[string]*model.ModelRankItem, len(results))
+	for i := range results {
+		r := &results[i]
+		key := fmt.Sprintf("%d:%s", r.ChannelID, r.ModelName)
+		rankMap[key] = &model.ModelRankItem{
+			ChannelID:       r.ChannelID,
+			ChannelName:     r.ChannelName,
+			ModelName:       r.ModelName,
+			InputToken:      r.InputToken,
+			OutputToken:     r.OutputToken,
+			CacheReadToken:  r.CacheReadToken,
+			CacheWriteToken: r.CacheWriteToken,
+			TotalCost:       r.TotalCost,
+			RequestSuccess:  r.RequestSuccess,
+			RequestFailed:   r.RequestFailed,
+			WaitTime:        r.WaitTime,
+		}
+	}
+
+	// Merge unflushed relay log cache entries
+	relayLogCacheLock.Lock()
+	for _, rl := range relayLogCache {
+		if rl.ActualModelName != "" {
+			key := fmt.Sprintf("%d:%s", rl.ChannelId, rl.ActualModelName)
+			item, ok := rankMap[key]
+			if !ok {
+				item = &model.ModelRankItem{
+					ChannelID:   rl.ChannelId,
+					ChannelName: rl.ChannelName,
+					ModelName:   rl.ActualModelName,
+				}
+				rankMap[key] = item
+			}
+			item.InputToken += int64(rl.InputTokens)
+			item.OutputToken += int64(rl.OutputTokens)
+			item.CacheReadToken += int64(rl.CacheReadTokens)
+			item.CacheWriteToken += int64(rl.CacheWriteTokens)
+			item.TotalCost += rl.Cost
+			item.WaitTime += int64(rl.UseTime)
+			if rl.Error == "" {
+				item.RequestSuccess++
+			} else {
+				item.RequestFailed++
+			}
+		}
+	}
+	relayLogCacheLock.Unlock()
+
+	rankItems := make([]model.ModelRankItem, 0, len(rankMap))
+	for _, item := range rankMap {
+		rankItems = append(rankItems, *item)
+	}
+
+	return rankItems, nil
+}
+
 func statsRefreshCache(ctx context.Context) error {
 	dbConn := db.GetDB().WithContext(ctx)
 	today := time.Now().Format("20060102")

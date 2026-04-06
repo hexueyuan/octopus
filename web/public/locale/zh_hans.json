@@ -48,7 +48,7 @@
         "channel": "渠道",
         "group": "分组",
         "key": "密钥",
-        "model": "价格",
+
         "log": "日志",
         "setting": "设置"
     },
@@ -76,12 +76,8 @@
                     "all": "全部分组",
                     "withMembers": "有成员",
                     "empty": "空分组"
-                },
-                "model": {
-                    "all": "全部模型",
-                    "priced": "仅收费",
-                    "free": "仅免费"
                 }
+
             }
         }
     },
@@ -93,12 +89,12 @@
         }
     },
     "home": {
-        "activity": {
-            "requestCount": "请求次数",
-            "waitTime": "等待时间",
-            "totalToken": "消耗 Token",
-            "totalCost": "消耗费用",
-            "noData": "无数据"
+        "timeRange": {
+            "today": "今天",
+            "last7Days": "7天",
+            "last30Days": "30天",
+            "all": "全部",
+            "custom": "自定义"
         },
         "total": {
             "requestStats": "请求统计",
@@ -111,6 +107,8 @@
             "totalCost": "消耗费用",
             "inputTokens": "输入 Tokens",
             "inputCost": "输入费用",
+            "cacheReadTokens": "缓存读取",
+            "cacheWriteTokens": "缓存写入",
             "outputTokens": "输出 Tokens",
             "outputCost": "输出费用"
         },
@@ -119,16 +117,10 @@
             "totalRequests": "请求次数",
             "totalCost": "消费金额",
             "totalTokens": "Tokens 消耗",
-            "timePeriod": "时间周期",
             "metricType": {
                 "cost": "金额",
                 "count": "次数",
                 "tokens": "Tokens"
-            },
-            "period": {
-                "today": "今天",
-                "last7Days": "7天",
-                "last30Days": "30天"
             }
         },
         "rank": {
@@ -154,6 +146,12 @@
             "zh_hans": "简体中文",
             "zh_hant": "繁体中文",
             "en": "English"
+        },
+        "currency": {
+            "label": "货币单位",
+            "usd": "美元 ($)",
+            "cny": "人民币 (¥)",
+            "exchangeRate": "汇率 (1 USD)"
         },
         "proxyUrl": {
             "label": "代理地址",
@@ -303,24 +301,6 @@
                 "failed": "密码修改失败"
             }
         },
-        "info": {
-            "title": "版本信息",
-            "currentVersion": "当前版本",
-            "latestVersion": "最新版本",
-            "buildTime": "构建时间",
-            "publishedAt": "发布时间",
-            "github": "GitHub 仓库",
-            "unknown": "未知",
-            "versionMismatch": "版本不匹配",
-            "versionMismatchHint": "前端版本 ({frontend}) 与后端版本 ({backend}) 不一致，可能是浏览器缓存问题，请强制刷新页面。",
-            "forceRefresh": "强制刷新",
-            "newVersionAvailable": "发现新版本可用",
-            "newVersionAvailableHint": "请先备份数据，然后更新系统",
-            "updateNow": "立即更新",
-            "updating": "更新中...",
-            "updateSuccess": "更新成功，服务即将重启",
-            "updateFailed": "更新失败"
-        },
         "log": {
             "title": "日志设置",
             "enabled": {
@@ -390,40 +370,6 @@
         },
         "empty": "暂无分组，点击左上角按钮创建"
     },
-    "model": {
-        "create": {
-            "title": "创建模型",
-            "name": "模型名称",
-            "input": "输入价格",
-            "output": "输出价格",
-            "cacheRead": "缓存读取",
-            "cacheWrite": "缓存写入",
-            "submit": "创建",
-            "submitting": "创建中..."
-        },
-        "toast": {
-            "updated": "模型价格已更新",
-            "updateFailed": "更新失败",
-            "deleted": "模型已删除",
-            "deleteFailed": "删除失败"
-        },
-        "card": {
-            "inputCache": "输入/缓存",
-            "outputCache": "输出/缓存",
-            "edit": "编辑",
-            "delete": "删除"
-        },
-        "overlay": {
-            "cancel": "取消",
-            "deleting": "删除中...",
-            "confirmDelete": "确认删除",
-            "input": "输入",
-            "output": "输出",
-            "cacheRead": "缓存读取",
-            "cacheWrite": "缓存写入",
-            "save": "保存"
-        }
-    },
     "log": {
         "list": {
             "noMore": "没有更多日志了"
@@ -436,6 +382,8 @@
             "input": "输入",
             "output": "输出",
             "cost": "费用",
+            "cacheRead": "缓存读取",
+            "cacheWrite": "缓存写入",
             "requestContent": "请求内容",
             "responseContent": "响应内容",
             "noRequestContent": "(无请求内容)",
@@ -541,7 +489,17 @@
             "autoGroupRegex": "正则匹配",
             "matchRegex": "匹配正则",
             "matchRegexPlaceholder": "可选：用于匹配请求模型名称的正则表达式",
-            "remark": "备注"
+            "remark": "备注",
+            "modelPrice": "模型价格",
+            "modelPriceInput": "输入",
+            "modelPriceOutput": "输出",
+            "modelPriceCacheRead": "缓存读",
+            "modelPriceCacheWrite": "缓存写",
+            "modelPriceSaveAll": "保存价格",
+            "modelPriceSaving": "保存中...",
+            "modelPriceSaved": "价格已保存",
+            "modelPriceSaveFailed": "保存价格失败",
+            "modelPriceNoChanges": "无需保存"
         }
     }
 }

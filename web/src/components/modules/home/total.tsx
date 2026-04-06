@@ -14,14 +14,19 @@ import {
     FastForward
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useStatsTotal } from '@/api/endpoints/stats';
+import { useStatsRange } from '@/api/endpoints/stats';
 import { AnimatedNumber } from '@/components/common/AnimatedNumber';
 import { EASING } from '@/lib/animations/fluid-transitions';
+import { useResolvedTimeRange } from './hooks';
 
 
 export function Total() {
-    const { data: statsTotalFormatted } = useStatsTotal();
+    const { start, end } = useResolvedTimeRange();
+    const { data: statsTotalFormatted } = useStatsRange(start, end);
     const t = useTranslations('home.total');
+
+    const cacheReadRaw = statsTotalFormatted?.cache_read_token.raw ?? 0;
+    const cacheWriteRaw = statsTotalFormatted?.cache_write_token.raw ?? 0;
 
     const cards = [
         {
@@ -78,7 +83,8 @@ export function Total() {
                     icon: Rewind,
                     color: 'text-primary',
                     bgColor: 'bg-chart-3/10',
-                    unit: statsTotalFormatted?.input_token.formatted.unit
+                    unit: statsTotalFormatted?.input_token.formatted.unit,
+                    sub: cacheReadRaw > 0 ? `${t('cacheReadTokens')} ${statsTotalFormatted?.cache_read_token.formatted.value ?? ''}${statsTotalFormatted?.cache_read_token.formatted.unit ? ' ' + statsTotalFormatted.cache_read_token.formatted.unit : ''}` : undefined
                 },
                 {
                     label: t('inputCost'),
@@ -100,7 +106,8 @@ export function Total() {
                     icon: FastForward,
                     color: 'text-primary',
                     bgColor: 'bg-chart-4/10',
-                    unit: statsTotalFormatted?.output_token.formatted.unit
+                    unit: statsTotalFormatted?.output_token.formatted.unit,
+                    sub: cacheWriteRaw > 0 ? `${t('cacheWriteTokens')} ${statsTotalFormatted?.cache_write_token.formatted.value ?? ''}${statsTotalFormatted?.cache_write_token.formatted.unit ? ' ' + statsTotalFormatted.cache_write_token.formatted.unit : ''}` : undefined
                 },
                 {
                     label: t('outputCost'),
@@ -149,6 +156,9 @@ export function Total() {
                                             <span className="text-sm text-muted-foreground">{item.unit}</span>
                                         )}
                                     </div>
+                                    {item.sub && (
+                                        <span className="text-[10px] text-muted-foreground/70">{item.sub}</span>
+                                    )}
                                 </div>
                             </div>
                         ))}

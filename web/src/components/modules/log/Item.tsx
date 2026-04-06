@@ -11,7 +11,7 @@ import { useTheme } from 'next-themes';
 import { type RelayLog, type ChannelAttempt } from '@/api/endpoints/log';
 import { getModelIcon } from '@/lib/model-icons';
 import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
+import { cn, getCurrencySymbol, convertCurrency } from '@/lib/utils';
 import { CopyIconButton } from '@/components/common/CopyButton';
 import {
     MorphingDialog,
@@ -256,18 +256,24 @@ export function LogCard({ log }: { log: RelayLog }) {
                                     <Cpu className="size-3.5 shrink-0 text-blue-500" />
                                     <span>{t('totalTime')} {formatDuration(log.use_time)}</span>
                                 </div>
-                                <div className="flex items-center gap-1.5">
-                                    <ArrowDownToLine className="size-3.5 shrink-0 text-green-500" />
-                                    <span>{t('input')} {log.input_tokens.toLocaleString()}</span>
+                                <div className="flex items-start gap-1.5">
+                                    <ArrowDownToLine className="size-3.5 shrink-0 text-green-500 mt-0.5" />
+                                    <div className="flex flex-col">
+                                        <span>{t('input')} {log.input_tokens.toLocaleString()}</span>
+                                        <span className="text-[10px] text-muted-foreground">{t('cacheRead')} {(log.cache_read_tokens ?? 0).toLocaleString()}</span>
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-1.5">
-                                    <ArrowUpFromLine className="size-3.5 shrink-0 text-purple-500" />
-                                    <span>{t('output')} {log.output_tokens.toLocaleString()}</span>
+                                <div className="flex items-start gap-1.5">
+                                    <ArrowUpFromLine className="size-3.5 shrink-0 text-purple-500 mt-0.5" />
+                                    <div className="flex flex-col">
+                                        <span>{t('output')} {log.output_tokens.toLocaleString()}</span>
+                                        <span className="text-[10px] text-muted-foreground">{t('cacheWrite')} {(log.cache_write_tokens ?? 0).toLocaleString()}</span>
+                                    </div>
                                 </div>
                                 <div className="flex items-center gap-1.5">
                                     <DollarSign className="size-3.5 shrink-0 text-emerald-500" />
                                     <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                                        {t('cost')} {Number(log.cost).toFixed(6)}
+                                        {t('cost')} {getCurrencySymbol()}{convertCurrency(Number(log.cost)).toFixed(6)}
                                     </span>
                                 </div>
                             </div>
@@ -476,7 +482,7 @@ export function LogCard({ log }: { log: RelayLog }) {
                             <div className="flex items-center gap-1.5">
                                 <DollarSign className="size-3.5 text-emerald-500" />
                                 <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                                    {t('cost')}: {Number(log.cost).toFixed(6)}
+                                    {t('cost')}: {getCurrencySymbol()}{convertCurrency(Number(log.cost)).toFixed(6)}
                                 </span>
                             </div>
                         </div>

@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger';
 import { useAuthStore } from './user';
 import { StatsAPIKey, StatsAPIKeyFormatted } from './stats';
 import { formatCount, formatMoney, formatTime } from '@/lib/utils';
+import { useSettingStore } from '@/stores/setting';
 
 /**
  * API Key 数据
@@ -56,15 +57,18 @@ export function useAPIKeyLogin() {
  */
 export function useAPIKeyDashboardStats() {
     const { isAPIKeyAuth, isAuthenticated } = useAuthStore();
+    const { currency, exchangeRate } = useSettingStore();
 
     return useQuery({
-        queryKey: ['apikey', 'dashboard', 'stats'],
+        queryKey: ['apikey', 'dashboard', 'stats', currency, exchangeRate],
         queryFn: () => apiClient.get<APIKeyStatsResponse>('/api/v1/apikey/stats'),
         select: (data): APIKeyStatsResponseFormatted => ({
             stats: {
                 api_key_id: data.stats.api_key_id,
                 input_token: formatCount(data.stats.input_token),
                 output_token: formatCount(data.stats.output_token),
+                cache_read_token: formatCount(data.stats.cache_read_token),
+                cache_write_token: formatCount(data.stats.cache_write_token),
                 total_token: formatCount(data.stats.input_token + data.stats.output_token),
                 input_cost: formatMoney(data.stats.input_cost),
                 output_cost: formatMoney(data.stats.output_cost),
@@ -202,8 +206,9 @@ export function useDeleteAPIKey() {
  * const { data: stats, isLoading } = useAPIKeyStats();
  */
 export function useAPIKeyStats() {
+    const { currency, exchangeRate } = useSettingStore();
     return useQuery({
-        queryKey: ['apikey', 'stats'],
+        queryKey: ['apikey', 'stats', currency, exchangeRate],
         queryFn: async () => {
             return apiClient.get<StatsAPIKey>('/api/v1/apikey/stats');
         },
@@ -211,6 +216,8 @@ export function useAPIKeyStats() {
             api_key_id: data.api_key_id,
             input_token: formatCount(data.input_token),
             output_token: formatCount(data.output_token),
+            cache_read_token: formatCount(data.cache_read_token),
+            cache_write_token: formatCount(data.cache_write_token),
             total_token: formatCount(data.input_token + data.output_token),
             input_cost: formatMoney(data.input_cost),
             output_cost: formatMoney(data.output_cost),

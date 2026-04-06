@@ -57,6 +57,12 @@ func (m *RelayMetrics) SetInternalResponse(resp *transformerModel.InternalLLMRes
 	m.Stats.InputToken = usage.PromptTokens
 	m.Stats.OutputToken = usage.CompletionTokens
 
+	// 提取缓存 token
+	if usage.PromptTokensDetails != nil {
+		m.Stats.CacheReadToken = int64(usage.PromptTokensDetails.CachedTokens)
+	}
+	m.Stats.CacheWriteToken = int64(usage.CacheCreationInputTokens)
+
 	modelPrice := price.GetLLMPrice(actualModel)
 	if modelPrice == nil {
 		return
@@ -80,11 +86,13 @@ func (m *RelayMetrics) Save(ctx context.Context, success bool, err error, attemp
 	duration := time.Since(m.StartTime)
 
 	globalStats := model.StatsMetrics{
-		WaitTime:    duration.Milliseconds(),
-		InputToken:  m.Stats.InputToken,
-		OutputToken: m.Stats.OutputToken,
-		InputCost:   m.Stats.InputCost,
-		OutputCost:  m.Stats.OutputCost,
+		WaitTime:        duration.Milliseconds(),
+		InputToken:      m.Stats.InputToken,
+		OutputToken:     m.Stats.OutputToken,
+		CacheReadToken:  m.Stats.CacheReadToken,
+		CacheWriteToken: m.Stats.CacheWriteToken,
+		InputCost:       m.Stats.InputCost,
+		OutputCost:      m.Stats.OutputCost,
 	}
 	if success {
 		globalStats.RequestSuccess = 1
@@ -126,9 +134,6 @@ func finalChannel(attempts []model.ChannelAttempt) (int, string) {
 
 func (m *RelayMetrics) saveLog(ctx context.Context, err error, duration time.Duration, attempts []model.ChannelAttempt, channelID int, channelName string) {
 	actualModel := m.ActualModel
-	if actualModel == "" {
-		actualModel = m.RequestModel
-	}
 
 	relayLog := model.RelayLog{
 		Time:             m.StartTime.Unix(),
@@ -154,6 +159,8 @@ func (m *RelayMetrics) saveLog(ctx context.Context, err error, duration time.Dur
 	if m.InternalResponse != nil && m.InternalResponse.Usage != nil {
 		relayLog.InputTokens = int(m.InternalResponse.Usage.PromptTokens)
 		relayLog.OutputTokens = int(m.InternalResponse.Usage.CompletionTokens)
+		relayLog.CacheReadTokens = int(m.Stats.CacheReadToken)
+		relayLog.CacheWriteTokens = int(m.Stats.CacheWriteToken)
 		relayLog.Cost = m.Stats.InputCost + m.Stats.OutputCost
 	}
 

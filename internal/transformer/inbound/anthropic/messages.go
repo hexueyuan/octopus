@@ -444,15 +444,7 @@ func (i *MessagesInbound) TransformResponse(ctx context.Context, response *model
 
 	// Convert usage
 	if response.Usage != nil {
-		usage := &Usage{
-			InputTokens:  response.Usage.PromptTokens,
-			OutputTokens: response.Usage.CompletionTokens,
-		}
-		if response.Usage.PromptTokensDetails != nil {
-			usage.CacheReadInputTokens = response.Usage.PromptTokensDetails.CachedTokens
-			usage.InputTokens -= usage.CacheReadInputTokens
-		}
-		resp.Usage = usage
+		resp.Usage = i.convertUsage(response.Usage)
 	}
 
 	return json.Marshal(resp)
@@ -859,7 +851,12 @@ func (i *MessagesInbound) convertUsage(usage *model.Usage) *Usage {
 	}
 	if usage.PromptTokensDetails != nil {
 		anthropicUsage.CacheReadInputTokens = usage.PromptTokensDetails.CachedTokens
-		anthropicUsage.InputTokens -= anthropicUsage.CacheReadInputTokens
+		if !usage.AnthropicUsage {
+			anthropicUsage.InputTokens -= anthropicUsage.CacheReadInputTokens
+		}
+	}
+	if usage.CacheCreationInputTokens > 0 {
+		anthropicUsage.CacheCreationInputTokens = usage.CacheCreationInputTokens
 	}
 	return anthropicUsage
 }

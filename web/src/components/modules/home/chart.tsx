@@ -9,18 +9,22 @@ import { formatCount, formatMoney } from '@/lib/utils';
 import dayjs from 'dayjs';
 import { AnimatedNumber } from '@/components/common/AnimatedNumber';
 import { Tabs, TabsList, TabsTrigger } from '@/components/animate-ui/components/animate/tabs';
-import { useHomeViewStore, type ChartMetricType, type ChartPeriod } from '@/components/modules/home/store';
+import { useHomeViewStore, type ChartMetricType } from '@/components/modules/home/store';
+import { useResolvedTimeRange } from './hooks';
 
 export function StatsChart() {
-    const PERIODS: readonly ChartPeriod[] = ['1', '7', '30'];
-    const { data: statsDaily } = useStatsDaily();
-    const { data: statsHourly } = useStatsHourly();
+    const { start, end } = useResolvedTimeRange();
+    const isSingleDay = start === end;
+
+    const { data: statsDaily } = useStatsDaily(
+        isSingleDay ? undefined : start,
+        isSingleDay ? undefined : end
+    );
+    const { data: statsHourly } = useStatsHourly(isSingleDay ? start : undefined);
     const t = useTranslations('home.chart');
 
     const chartMetricType = useHomeViewStore((state) => state.chartMetricType);
     const setChartMetricType = useHomeViewStore((state) => state.setChartMetricType);
-    const period = useHomeViewStore((state) => state.chartPeriod);
-    const setChartPeriod = useHomeViewStore((state) => state.setChartPeriod);
 
     const sortedDaily = useMemo(() => {
         if (!statsDaily) return [];
@@ -33,7 +37,7 @@ export function StatsChart() {
 
     const chartData = useMemo(() => {
         const dataKey = getChartDataKey(chartMetricType);
-        if (period === '1') {
+        if (isSingleDay) {
             if (!statsHourly) return [];
             return statsHourly.map((stat) => ({
                 date: `${stat.hour}:00`,
@@ -44,8 +48,7 @@ export function StatsChart() {
                         : (stat.input_token.raw + stat.output_token.raw),
             }));
         } else {
-            const days = Number(period);
-            return sortedDaily.slice(-days).map((stat) => ({
+            return sortedDaily.map((stat) => ({
                 date: dayjs(stat.date).format('MM/DD'),
                 [dataKey]: chartMetricType === 'cost'
                     ? stat.total_cost.raw
@@ -54,32 +57,22 @@ export function StatsChart() {
                         : (stat.input_token.raw + stat.output_token.raw),
             }));
         }
-    }, [sortedDaily, statsHourly, period, chartMetricType]);
+    }, [sortedDaily, statsHourly, isSingleDay, chartMetricType]);
 
     const totals = useMemo(() => {
-        if (period === '1') {
+        if (isSingleDay) {
             if (!statsHourly) return { requests: 0, cost: 0, tokens: 0 };
             const requests = statsHourly.reduce((acc, stat) => acc + stat.request_count.raw, 0);
             const cost = statsHourly.reduce((acc, stat) => acc + stat.total_cost.raw, 0);
             const tokens = statsHourly.reduce((acc, stat) => acc + stat.input_token.raw + stat.output_token.raw, 0);
-            return {
-                requests,
-                cost,
-                tokens,
-            };
+            return { requests, cost, tokens };
         } else {
-            const days = Number(period);
-            const recentStats = sortedDaily.slice(-days);
-            const requests = recentStats.reduce((acc, stat) => acc + stat.request_success.raw + stat.request_failed.raw, 0);
-            const cost = recentStats.reduce((acc, stat) => acc + stat.total_cost.raw, 0);
-            const tokens = recentStats.reduce((acc, stat) => acc + stat.input_token.raw + stat.output_token.raw, 0);
-            return {
-                requests,
-                cost,
-                tokens,
-            };
+            const requests = sortedDaily.reduce((acc, stat) => acc + stat.request_success.raw + stat.request_failed.raw, 0);
+            const cost = sortedDaily.reduce((acc, stat) => acc + stat.total_cost.raw, 0);
+            const tokens = sortedDaily.reduce((acc, stat) => acc + stat.input_token.raw + stat.output_token.raw, 0);
+            return { requests, cost, tokens };
         }
-    }, [sortedDaily, statsHourly, period]);
+    }, [sortedDaily, statsHourly, isSingleDay]);
 
     const chartConfig = useMemo(() => {
         const dataKey = getChartDataKey(chartMetricType);
@@ -92,23 +85,6 @@ export function StatsChart() {
             [dataKey]: { label: labels[dataKey] },
         };
     }, [chartMetricType, t]);
-
-    const getPeriodLabel = (p: ChartPeriod) => {
-        const labels = {
-            '1': t('period.today'),
-            '7': t('period.last7Days'),
-            '30': t('period.last30Days'),
-        };
-        return labels[p];
-    };
-
-
-    const handlePeriodClick = () => {
-        const currentIndex = PERIODS.indexOf(period);
-        const nextIndex = (currentIndex + 1) % PERIODS.length;
-        setChartPeriod(PERIODS[nextIndex]);
-    };
-
 
     const getChartStroke = (type: ChartMetricType) => {
         if (type === 'cost') return 'var(--chart-1)';
@@ -136,40 +112,29 @@ export function StatsChart() {
                     </Tabs>
                 </div>
 
-                {/* 第二行：汇总统计 + 周期选择 */}
-                <div className="flex justify-between items-start">
-                    <div className="flex gap-2 text-sm">
-                        <div>
-                            <div className="text-xs text-muted-foreground">{t('totalRequests')}</div>
-                            <div className="text-xl font-semibold">
-                                <AnimatedNumber value={formatCount(totals.requests).formatted.value} />
-                                <span className="ml-0.5 text-sm text-muted-foreground">{formatCount(totals.requests).formatted.unit}</span>
-                            </div>
-                        </div>
-                        <div className="w-px bg-border self-stretch"></div>
-                        <div>
-                            <div className="text-xs text-muted-foreground">{t('totalCost')}</div>
-                            <div className="text-xl font-semibold">
-                                <AnimatedNumber value={formatMoney(totals.cost).formatted.value} />
-                                <span className="ml-0.5 text-sm text-muted-foreground">{formatMoney(totals.cost).formatted.unit}</span>
-                            </div>
-                        </div>
-                        <div className="w-px bg-border self-stretch"></div>
-                        <div>
-                            <div className="text-xs text-muted-foreground">{t('totalTokens')}</div>
-                            <div className="text-xl font-semibold">
-                                <AnimatedNumber value={formatCount(totals.tokens).formatted.value} />
-                                <span className="ml-0.5 text-sm text-muted-foreground">{formatCount(totals.tokens).formatted.unit}</span>
-                            </div>
+                {/* 汇总统计 */}
+                <div className="flex gap-2 text-sm">
+                    <div>
+                        <div className="text-xs text-muted-foreground">{t('totalRequests')}</div>
+                        <div className="text-xl font-semibold">
+                            <AnimatedNumber value={formatCount(totals.requests).formatted.value} />
+                            <span className="ml-0.5 text-sm text-muted-foreground">{formatCount(totals.requests).formatted.unit}</span>
                         </div>
                     </div>
-                    <div
-                        className="flex gap-2 text-sm cursor-pointer hover:opacity-80 transition-opacity"
-                        onClick={handlePeriodClick}
-                    >
-                        <div>
-                            <div className="text-xs text-muted-foreground">{t('timePeriod')}</div>
-                            <div className="text-base font-semibold">{getPeriodLabel(period)}</div>
+                    <div className="w-px bg-border self-stretch"></div>
+                    <div>
+                        <div className="text-xs text-muted-foreground">{t('totalCost')}</div>
+                        <div className="text-xl font-semibold">
+                            <AnimatedNumber value={formatMoney(totals.cost).formatted.value} />
+                            <span className="ml-0.5 text-sm text-muted-foreground">{formatMoney(totals.cost).formatted.unit}</span>
+                        </div>
+                    </div>
+                    <div className="w-px bg-border self-stretch"></div>
+                    <div>
+                        <div className="text-xs text-muted-foreground">{t('totalTokens')}</div>
+                        <div className="text-xl font-semibold">
+                            <AnimatedNumber value={formatCount(totals.tokens).formatted.value} />
+                            <span className="ml-0.5 text-sm text-muted-foreground">{formatCount(totals.tokens).formatted.unit}</span>
                         </div>
                     </div>
                 </div>

@@ -3,6 +3,7 @@ import { apiClient } from '../client';
 import { logger } from '@/lib/logger';
 import { formatCount, formatMoney, formatTime } from '@/lib/utils';
 import { StatsChannel, type StatsMetricsFormatted } from './stats';
+import { useSettingStore } from '@/stores/setting';
 /**
  * 渠道类型枚举
  */
@@ -141,8 +142,9 @@ export type FetchModelRequest = {
  * channels?.forEach(channel => console.log(channel.raw.name));
  */
 export function useChannelList() {
+    const { currency, exchangeRate } = useSettingStore();
     return useQuery({
-        queryKey: ['channels', 'list'],
+        queryKey: ['channels', 'list', currency, exchangeRate],
         queryFn: async () => {
             return apiClient.get<ChannelServer[]>('/api/v1/channel/list');
         },

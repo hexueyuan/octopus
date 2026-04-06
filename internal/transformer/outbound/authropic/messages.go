@@ -248,12 +248,16 @@ func (o *MessageOutbound) TransformStream(ctx context.Context, eventData []byte)
 
 	case "message_delta":
 		if streamEvent.Usage != nil {
-			usage := convertAnthropicUsage(streamEvent.Usage)
 			if o.streamUsage != nil {
-				usage.PromptTokens = o.streamUsage.PromptTokens
-				usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+				o.streamUsage.CompletionTokens = streamEvent.Usage.OutputTokens
+				o.streamUsage.TotalTokens = o.streamUsage.PromptTokens + o.streamUsage.CompletionTokens
+				if o.streamUsage.PromptTokensDetails != nil {
+					o.streamUsage.TotalTokens += o.streamUsage.PromptTokensDetails.CachedTokens
+				}
+				o.streamUsage.TotalTokens += o.streamUsage.CacheCreationInputTokens
+			} else {
+				o.streamUsage = convertAnthropicUsage(streamEvent.Usage)
 			}
-			o.streamUsage = usage
 		}
 
 		if streamEvent.Delta != nil && streamEvent.Delta.StopReason != nil {

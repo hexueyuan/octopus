@@ -2,12 +2,14 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useTranslations } from 'next-intl';
-import { DollarSign, Clock, RefreshCw } from 'lucide-react';
+import { DollarSign, Clock, RefreshCw, Coins } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useSettingList, useSetSetting, SettingKey } from '@/api/endpoints/setting';
 import { useUpdateModelPrice, useLastUpdateTime } from '@/api/endpoints/model';
 import { toast } from '@/components/common/Toast';
+import { useSettingStore, type Currency, DEFAULT_USD_TO_CNY_RATE } from '@/stores/setting';
 
 export function SettingLLMPrice() {
     const t = useTranslations('setting');
@@ -15,6 +17,7 @@ export function SettingLLMPrice() {
     const setSetting = useSetSetting();
     const updatePrice = useUpdateModelPrice();
     const { data: lastUpdateTime } = useLastUpdateTime();
+    const { currency, setCurrency, exchangeRate, setExchangeRate } = useSettingStore();
 
     const [updateInterval, setUpdateInterval] = useState('');
     const initialUpdateInterval = useRef('');
@@ -64,6 +67,45 @@ export function SettingLLMPrice() {
                 <DollarSign className="h-5 w-5" />
                 {t('llmPrice.title')}
             </h2>
+
+            {/* 货币单位 */}
+            <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                    <Coins className="h-5 w-5 text-muted-foreground" />
+                    <span className="text-sm font-medium">{t('currency.label')}</span>
+                </div>
+                <Select value={currency} onValueChange={(v) => setCurrency(v as Currency)}>
+                    <SelectTrigger className="w-48 rounded-xl">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                        <SelectItem value="USD" className="rounded-xl">{t('currency.usd')}</SelectItem>
+                        <SelectItem value="CNY" className="rounded-xl">{t('currency.cny')}</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+
+            {/* 汇率 */}
+            {currency === 'CNY' && (
+                <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <div className="h-5 w-5" />
+                        <span className="text-sm font-medium">{t('currency.exchangeRate')}</span>
+                    </div>
+                    <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={exchangeRate}
+                        onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            if (Number.isFinite(val) && val > 0) setExchangeRate(val);
+                        }}
+                        placeholder={`1 USD = ? CNY (${DEFAULT_USD_TO_CNY_RATE})`}
+                        className="w-48 rounded-xl"
+                    />
+                </div>
+            )}
 
             {/* 更新间隔 */}
             <div className="flex items-center justify-between gap-4">

@@ -25,7 +25,7 @@ import {
 } from '@/api/endpoints/apikey';
 import { useGroupList } from '@/api/endpoints/group';
 import { useStatsAPIKey } from '@/api/endpoints/stats';
-import { cn } from '@/lib/utils';
+import { cn, getCurrencySymbol } from '@/lib/utils';
 import { toast } from '@/components/common/Toast';
 import { CopyIconButton } from '@/components/common/CopyButton';
 import type { ApiError } from '@/api/types';
@@ -184,7 +184,7 @@ function APIKeyForm({ apiKey, isPending, submitLabel, onSubmit, onClose }: APIKe
                 {t('apiKey.form.maxCost')}
                 <div className="flex items-center gap-2">
                     <div className="relative flex-1">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">{getCurrencySymbol()}</span>
                         <Input
                             type="text"
                             inputMode="decimal"
