@@ -28,6 +28,11 @@ export function Total() {
     const cacheReadRaw = statsTotalFormatted?.cache_read_token.raw ?? 0;
     const cacheWriteRaw = statsTotalFormatted?.cache_write_token.raw ?? 0;
 
+    const cacheInputSubs = [
+        cacheReadRaw > 0 ? `${t('cacheReadTokens')} ${statsTotalFormatted?.cache_read_token.formatted.value ?? ''}${statsTotalFormatted?.cache_read_token.formatted.unit ? ' ' + statsTotalFormatted.cache_read_token.formatted.unit : ''}` : '',
+        cacheWriteRaw > 0 ? `${t('cacheWriteTokens')} ${statsTotalFormatted?.cache_write_token.formatted.value ?? ''}${statsTotalFormatted?.cache_write_token.formatted.unit ? ' ' + statsTotalFormatted.cache_write_token.formatted.unit : ''}` : '',
+    ].filter(Boolean).join(' / ') || undefined;
+
     const cards = [
         {
             title: t('requestStats'),
@@ -84,7 +89,7 @@ export function Total() {
                     color: 'text-primary',
                     bgColor: 'bg-chart-3/10',
                     unit: statsTotalFormatted?.input_token.formatted.unit,
-                    sub: cacheReadRaw > 0 ? `${t('cacheReadTokens')} ${statsTotalFormatted?.cache_read_token.formatted.value ?? ''}${statsTotalFormatted?.cache_read_token.formatted.unit ? ' ' + statsTotalFormatted.cache_read_token.formatted.unit : ''}` : undefined
+                    sub: cacheInputSubs
                 },
                 {
                     label: t('inputCost'),
@@ -106,8 +111,7 @@ export function Total() {
                     icon: FastForward,
                     color: 'text-primary',
                     bgColor: 'bg-chart-4/10',
-                    unit: statsTotalFormatted?.output_token.formatted.unit,
-                    sub: cacheWriteRaw > 0 ? `${t('cacheWriteTokens')} ${statsTotalFormatted?.cache_write_token.formatted.value ?? ''}${statsTotalFormatted?.cache_write_token.formatted.unit ? ' ' + statsTotalFormatted.cache_write_token.formatted.unit : ''}` : undefined
+                    unit: statsTotalFormatted?.output_token.formatted.unit
                 },
                 {
                     label: t('outputCost'),
